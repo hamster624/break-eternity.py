@@ -1,13 +1,20 @@
 import math
 
 # --Editable constants--
-FORMAT_THRESHOLD = 7 #the amount of e's when switching from scientific to (10^)^x format
-format_decimals = 6 # amount of decimals for the "hyper-e" format, "format" and the "power10_tower" format. Keep below 16.
-max_layer = 10 # amount of 10^ in power10_tower format when it switches from 10^ iterated times to 10^^x
+FORMAT_THRESHOLD = 7  # the amount of e's when switching from scientific to (10^)^x format
+format_decimals = 6  # amount of decimals for the "hyper-e" format, "format" and the "power10_tower" format. Keep below 16.
+max_layer = 10  # amount of 10^ in power10_tower format when it switches from 10^ iterated times to 10^^x
+suffix_max= 3003 # at how much of 10^x it adds scientific notation
 # --End of editable constants--
 
-LARGE_HEIGHT_THRESHOLD = 9007199254740991 # 2**53-1, the largest integer that can be represented exactly in python's float
+LARGE_HEIGHT_THRESHOLD = 9007199254740991  # 2**53-1, the largest integer that can be represented exactly in python's float
+PRECISION_LIMIT = 1e-308  # Precision limit for logarithmic calculations
+MIN_EXPONENT = -1e308  # Minimum exponent for logarithmic calculations
+MAX_EXPONENT = 1e308   # Maximum exponent for logarithmic calculations
+
 def get_sign_and_abs(x):
+    if x is None:
+        return 1, None
     if isinstance(x, (int, float)):
         if x < 0:
             return -1, -x
@@ -28,6 +35,8 @@ def apply_sign(x, sign):
         return negate(x)
 
 def negate(x):
+    if x is None:
+        return None
     if isinstance(x, (int, float)):
         if x == 0:
             return 0
@@ -52,46 +61,60 @@ def tetration(a, h):
     try:
         h_float = float(h)
     except (TypeError, ValueError):
-        return "Error: Tetration height must be a valid number below 1e308"
+        return "Error: Tetration height must be a valid number"
+    
+    sign_a, abs_a = get_sign_and_abs(a)
+    if sign_a == -1:
+        return "Error: Tetration base must be non-negative"
+    
+    a_val = abs_a
+    
     if h_float < 0:
-        return "Error: Tetration height can not be less than 0"
+        return "Error: Tetration height must be non-negative"
+    
     try:
-        a_float = float(a)
+        a_float = float(a_val)
         use_float = True
     except (TypeError, ValueError):
         use_float = False
-    try:
-        if not use_float:
-            if isinstance(a, str):
-                s = slog(a)
-                if math.isnan(s) or math.isinf(s):
-                    return "NaN"
-                return tetration(10, s + h_float-1)
-            else:
+        
+    if not use_float:
+        if isinstance(a_val, str):
+            s = slog(a_val)
+            if math.isnan(s) or math.isinf(s) or s == "Error: x can't be a negative number":
                 return "NaN"
-    except:
-        return "NaN"
-    a_float = float(a)
+            try:
+                return tetration(10, float(s) + h_float - 1)
+            except:
+                return "NaN"
+        else:
+            return "NaN"
+    
+    a_float = float(a_val)
     if a_float < 0:
-        return "NaN"
+        return "Error: Tetration base must be non-negative"
     if a_float == 0:
         if h_float == 0:
             return "NaN"
         return "0" if h_float % 2 == 0 else ("1" if h_float == 1 else "0")
     if a_float == 1:
         return "1"
+    
     if h_float >= LARGE_HEIGHT_THRESHOLD:
         if abs(h_float - round(h_float)) < 1e-12:
             height_str = format_int_scientific(int(round(h_float)))
         else:
             height_str = format_float_scientific(h_float)
         return f"10^^{height_str}"
-    log10a = math.log10(a_float)
+    
+    log10a = math.log10(a_float) if a_float > 0 else -float('inf')
     log_log10a = math.log10(log10a) if log10a > 0 else -float('inf')
+    
     try:
         n = math.floor(h_float)
-    except (ValueError,TypeError, OverflowError):
+    except (ValueError, TypeError, OverflowError):
         return "NaN"
+    
     f = h_float - n
     current = a_float ** f if f > 0 else 1.0
     layer = 0
@@ -99,8 +122,9 @@ def tetration(a, h):
         if current < 1e12:
             return current
         if abs(current - round(current)) < 1e-10:
-            return str(format_float_scientific(round(current)))
+            return format_float_scientific(round(current))
         return f"{current:.15g}"
+    
     n_remaining = int(n)
     layer0_iter = 0
     prev_current = current
@@ -130,17 +154,19 @@ def tetration(a, h):
         else:
             layer += n_remaining
             n_remaining = 0
+    
     if layer >= 1 and math.isfinite(current) and current > LARGE_HEIGHT_THRESHOLD:
         while current > LARGE_HEIGHT_THRESHOLD:
             current = math.log10(current)
             layer += 1
+    
     if layer == 0:
         if current < 1e12:
             return current
         if math.isnan(current):
             return "NaN"
         if abs(current - round(current)) < 1e-10:
-            return str(format_float_scientific(round(current)))
+            return format_float_scientific(round(current))
         return f"{current:.15g}"
     elif layer == 1:
         return f"e{current:.15g}"
@@ -151,14 +177,25 @@ def tetration(a, h):
 
 def slog_numeric(x, base):
     if base <= 0 or base == 1:
-        return "NaN"
-    if x < 0:
-        return "NaN"
+        return float('nan')
+    sign_x, abs_x = get_sign_and_abs(x)
+    if sign_x == -1:
+        return float('nan')
+    x = abs_x
+    
+    try:
+        x_val = float(x)
+    except (TypeError, ValueError):
+        return float('nan')
+    
+    if x_val <= 0:
+        return float('-inf')
+    
     count = 0.0
-    current = x
+    current = x_val
     while current < 1:
         if current <= 0:
-            return float('-Inf')
+            return float('-inf')
         try:
             current = base ** current
         except OverflowError:
@@ -168,12 +205,13 @@ def slog_numeric(x, base):
         try:
             current = math.log(current, base)
         except (OverflowError, ValueError):
-            return "NaN"
+            return float('nan')
         count += 1
+    
     try:
         frac = math.log(current, base)
     except (OverflowError, ValueError):
-        return "NaN"
+        return float('nan')
     return count + frac
 
 def slog(x, base=10):
@@ -181,26 +219,28 @@ def slog(x, base=10):
     if sign_x == -1:
         return "Error: x can't be a negative number"
     x = abs_x
+    
     if x == 0:
         return -1
+    
     if isinstance(x, str):
         if base == 10:
             if x.startswith("10^^"):
                 try:
                     return float(x[4:])
                 except:
-                    return "NaN"
+                    return float('nan')
             elif x.startswith("(10^)^"):
                 parts = x.split(' ', 1)
                 if len(parts) < 2:
-                    return "NaN"
+                    return float('nan')
                 head, mantissa_str = parts
                 k_str = head[6:]
                 try:
                     k = int(k_str)
                     mantissa = float(mantissa_str)
                 except:
-                    return "NaN"
+                    return float('nan')
                 return k + slog_numeric(mantissa, 10)
             else:
                 count = 0
@@ -212,12 +252,12 @@ def slog(x, base=10):
                     try:
                         return slog_numeric(float(x), 10)
                     except:
-                        return "NaN"
+                        return float('nan')
                 else:
                     try:
                         mantissa = float(s)
                     except:
-                        return "NaN"
+                        return float('nan')
                     return count + slog_numeric(mantissa, 10)
         else:
             count = 0.0
@@ -231,7 +271,7 @@ def slog(x, base=10):
                         try:
                             return count + slog_numeric(float(s), base)
                         except:
-                            return "NaN"
+                            return float('nan')
                     count += height
                     return count
                 elif s.startswith("(10^)^"):
@@ -240,14 +280,14 @@ def slog(x, base=10):
                         try:
                             return count + slog_numeric(float(s), base)
                         except:
-                            return "NaN"
+                            return float('nan')
                     head, mantissa_str = parts
                     k_str = head[6:]
                     try:
                         k = int(k_str)
                         mantissa = float(mantissa_str)
                     except:
-                        return "NaN"
+                        return float('nan')
                     count += k
                     s = mantissa_str
                 elif s.startswith('e'):
@@ -261,7 +301,7 @@ def slog(x, base=10):
                     try:
                         return count + slog_numeric(float(s), base)
                     except:
-                        return "NaN"
+                        return float('nan')
             return count
     else:
         return slog_numeric(x, base)
@@ -271,6 +311,7 @@ def log(x):
     if sign_x == -1:
         return "Error: Logarithm of negative number"
     x = abs_x
+    
     if isinstance(x, str):
         if x == "NaN" or x.startswith("Error:"):
             return x
@@ -315,14 +356,14 @@ def log(x):
                 return "NaN"
     else:
         try:
-            return str(math.log10(x))
+            return math.log10(x)
         except:
             return "NaN"
 
 def addlayer(a, b=1):
     s = slog(a)
     try:
-        if math.isinf(s) or math.isnan(s):
+        if math.isinf(s) or math.isnan(s) or isinstance(s, str):
             return "NaN"
     except:
         return "NaN"
@@ -330,6 +371,7 @@ def addlayer(a, b=1):
         return tetration(10, float(b) + float(s))
     except (ValueError, TypeError, OverflowError):
         return "Error trying to do ``addlayer``"
+
 def is_float_convertible(x):
     try:
         float(x)
@@ -345,6 +387,8 @@ def subtract_positive(a, b, depth=0):
         return negate(b)
     if b in [0, "0"]:
         return a
+    
+    # Handle negative values using logarithmic approach
     if is_float_convertible(a) and is_float_convertible(b):
         a_float = float(a)
         b_float = float(b)
@@ -356,10 +400,13 @@ def subtract_positive(a, b, depth=0):
         if abs(result) < 1e-3 or abs(result) >= 1e12:
             return format_float_scientific(result)
         return str(result)
+    
     if lt(a, b) == True:
         return negate(subtract_positive(b, a, depth+1))
+    
     if eq(a, b) == True:
         return 0
+    
     if isinstance(a, str) and a.startswith('e') and is_float_convertible(b):
         try:
             exponent = float(a[1:])
@@ -377,13 +424,17 @@ def subtract_positive(a, b, depth=0):
             return "e" + str(math.log10(result))
         except:
             pass 
+    
+    # Logarithmic subtraction for very large numbers
     A = log(a)
     B = log(b)
-    if A == "NaN" or B == "NaN":
+    if A == "NaN" or B == "NaN" or A == "Error: Logarithm of negative number" or B == "Error: Logarithm of negative number":
         return a
+    
     D = subtract_positive(A, B, depth+1)
     if D == "NaN" or D == "Error: Logarithm of negative number":
         return a
+    
     try:
         D_float = float(D)
         if D_float > 1000:
@@ -399,72 +450,99 @@ def subtract_positive(a, b, depth=0):
         return a
 
 def add_positive(a, b):
-    if isinstance(a, (int, float)) and isinstance(b, (int, float)):
-        if a == 0:
-            return b
-        if b == 0:
-            return a
-        if a < 1e150 and b < 1e150:
-            return a + b
+    if a in [0, "0"]:
+        return b
+    if b in [0, "0"]:
+        return a
+    
+    # Direct addition for manageable numbers
+    if is_float_convertible(a) and is_float_convertible(b):
+        a_float = float(a)
+        b_float = float(b)
+        result = a_float + b_float
+        if abs(result) < 1e308:
+            return result
+        elif abs(result) >= 1e308:
+            return format_float_scientific(result)
+    
     s_a = slog(a)
     s_b = slog(b)
-    if math.isnan(s_a) or math.isnan(s_b):
+    if math.isnan(s_a) or math.isnan(s_b) or isinstance(s_a, str) or isinstance(s_b, str):
         return "NaN"
+    
+    # If the slog values differ significantly, return the larger number
     if abs(s_a - s_b) >= 1:
         return a if s_a > s_b else b
+    
+    # For very large numbers, use logarithmic addition
     if s_a > 100 or s_b > 100:
         return a if s_a >= s_b else b
+    
+    # For smaller numbers, try direct addition
     if s_a < 1 and s_b < 1:
         try:
             return float(a) + float(b)
         except:
             return a if s_a >= s_b else b
+    
+    # Ensure we're subtracting logs correctly
     if gt(b, a) == True:
         a, b = b, a
         s_a, s_b = s_b, s_a
+    
     log_a = log(a)
     log_b = log(b)
     try:
-        if isinstance(log_a, (int, float)) and isinstance(log_b, (int, float)):
-            d_val = log_b - log_a
+        if is_float_convertible(log_a) and is_float_convertible(log_b):
+            d_val = float(log_b) - float(log_a)
         else:
             d_exp = subtract(log_b, log_a)
             d_val = float(d_exp) if is_float_convertible(d_exp) else -float('inf')
     except:
         d_val = -float('inf')
-    if d_val < -350:
+    
+    if d_val < MIN_EXPONENT:
         return a
+    
     try:
         x = 10.0 ** d_val
         y = math.log10(1 + x)
     except:
         return a
-    if isinstance(log_a, (int, float)):
-        new_exponent = log_a + y
+    
+    if is_float_convertible(log_a):
+        new_exponent = float(log_a) + y
     else:
         try:
             new_exponent = addition(log_a, y)
         except:
             return a
+    
     return addlayer(new_exponent)
 
 def addition(a, b):
     try:
-        if float(a) and float(b) < 5e307:
-            return float(a)+float(b)
+        a_float = float(a)
+        b_float = float(b)
+        if abs(a_float) < 5e307 and abs(b_float) < 5e307:
+            return a_float + b_float
     except (ValueError, TypeError, OverflowError):
         pass
+    
     sign_a, abs_a = get_sign_and_abs(a)
     sign_b, abs_b = get_sign_and_abs(b)
+    
     if abs_a in [0, "0"] and abs_b in [0, "0"]:
         return 0
     if abs_a in [0, "0"]:
         return apply_sign(abs_b, sign_b)
     if abs_b in [0, "0"]:
         return apply_sign(abs_a, sign_a)
+    
     if sign_a == sign_b:
         result = add_positive(abs_a, abs_b)
         return apply_sign(result, sign_a)
+    
     cmp = compare_positive(abs_a, abs_b)
     if cmp == 0:
         return 0
@@ -475,112 +553,170 @@ def addition(a, b):
         result = subtract_positive(abs_b, abs_a, 0)
         return apply_sign(result, sign_b)
 
-def subtract(a, b): return addition(a, negate(b))
+def subtract(a, b):
+    return addition(a, negate(b))
 
 def multiply(a, b):
+    sign_a, abs_a = get_sign_and_abs(a)
+    sign_b, abs_b = get_sign_and_abs(b)
+    sign = sign_a * sign_b
+    
+    if abs_a in [0, "0"] or abs_b in [0, "0"]:
+        return 0
+    
+    # Direct multiplication for manageable numbers
     try:
-        if float(a)< 1e154 and float(b) < 1e154:
-            return float(a) * float(b)
-    except (TypeError, ValueError, OverflowError):
-        pass
-    try:
-        return addlayer(add(log(a),log(b)))
-    except:
-        return "Error doing multiplication"   
- 
-def division(a, b):
-    try:
-        if a < "ee308" and b < "ee308":
-            return addlayer(log(a)-log(b))
+        a_float = float(abs_a)
+        b_float = float(abs_b)
+        product = a_float * b_float
+        if not math.isinf(product) and abs(product) < 1e308:
+            return apply_sign(product, sign)
     except (ValueError, TypeError, OverflowError):
         pass
-    if gt(a, b) == True:
-        return str(a)
-    if eq(a, b) == True:
-        return "1"
-    if lt(a, b) == True:
-        return "0"
-    if b == 0 or b == "0":
-        return "Error: Division by zero"
+    
+    # Logarithmic multiplication for very large numbers
     try:
-        addlayer(sub(log(a), log(b)))
+        log_a = log(abs_a)
+        log_b = log(abs_b)
+        if log_a == "Error: Logarithm of negative number" or log_b == "Error: Logarithm of negative number":
+            return "Error: Logarithm of negative number"
+        
+        log_product = addition(log_a, log_b)
+        product = addlayer(log_product)
+        return apply_sign(product, sign)
     except:
-        return "NaN"
+        return "Error doing multiplication"
 
-def power(a,b): return addlayer(mul(log(a),b))
+def division(a, b):
+    sign_a, abs_a = get_sign_and_abs(a)
+    sign_b, abs_b = get_sign_and_abs(b)
+    sign = sign_a * sign_b
+    
+    if abs_b in [0, "0"]:
+        return "Error: Division by zero"
+    if abs_a in [0, "0"]:
+        return 0
+    
+    # Direct division for manageable numbers
+    try:
+        a_float = float(abs_a)
+        b_float = float(abs_b)
+        quotient = a_float / b_float
+        if not math.isinf(quotient) and abs(quotient) < 1e308:
+            return apply_sign(quotient, sign)
+    except (ValueError, TypeError, OverflowError):
+        pass
+    
+    # Logarithmic division for very large numbers
+    try:
+        log_a = log(abs_a)
+        log_b = log(abs_b)
+        if log_a == "Error: Logarithm of negative number" or log_b == "Error: Logarithm of negative number":
+            return "Error: Logarithm of negative number"
+        
+        log_quotient = subtract(log_a, log_b)
+        quotient = addlayer(log_quotient)
+        return apply_sign(quotient, sign)
+    except:
+        return "Error doing division"
+
+def power(a, b):
+    sign_a, abs_a = get_sign_and_abs(a)
+    
+    # Handle negative base with integer exponent
+    if sign_a == -1:
+        try:
+            b_float = float(b)
+            if abs(b_float - round(b_float)) < 1e-10:
+                exponent_int = int(round(b_float))
+                sign_result = -1 if exponent_int % 2 == 1 else 1
+                abs_result = power(abs_a, b)
+                return apply_sign(abs_result, sign_result)
+            else:
+                return "Error: Fractional exponent of negative base"
+        except:
+            return "Error: Invalid exponent for negative base"
+    
+    # Logarithmic power for positive base
+    try:
+        log_a = log(abs_a)
+        if log_a == "Error: Logarithm of negative number":
+            return "Error: Logarithm of negative number"
+        
+        log_power = multiply(log_a, b)
+        result = addlayer(log_power)
+        return result
+    except:
+        return "Error doing power"
 
 def root(a, b):
-    if eq(log(a), b) == True:
-        return 10
-    if lt(log(a), b) == True:
-        return 1
-    if gt(a, "eeee308") == True:
-        return str(a)
-    else:
-        try:
-            return a ** (1/b)
-        except (OverflowError, TypeError, ValueError):
-            return power(a, div(1,b))
+    if b == 0:
+        return "Error: Root of order 0"
+    return power(a, division(1, b))
 
-def sqrt(x): return root(x, 2)
+def sqrt(x):
+    return root(x, 2)
 
 def factorial(n):
-    sign, abs_x = get_sign_and_abs(n)
+    sign, abs_n = get_sign_and_abs(n)
+    if sign == -1:
+        return "Factorial can't be negative"
+    
     try:
-        if sign == -1:
-            return "Factorial can't be negative"
-        try:
-            n = float(abs_x)
-        except (TypeError, OverflowError, ValueError):
-            n = str(abs_x)
-    except:
-        return "NaN"
-    if n == 0:
+        n_val = float(abs_n)
+    except (TypeError, OverflowError, ValueError):
+        n_val = str(abs_n)
+    
+    if n_val == 0:
         return 1
+    
+    # Direct factorial for manageable numbers
     try:
-        if n < 170:
-            return math.gamma(n+1)
+        if n_val < 170:
+            return math.gamma(n_val + 1)
     except (ValueError, TypeError, OverflowError):
         pass
-    try:
-        n = float(n)   
-    except (ValueError, TypeError, OverflowError):
-        pass
-    if gt(n, "e1000000000000") == True:
-        return addlayer(n) # yes what you are seeing is that if the values is greater than e1000000000000 it just 10^x the number this is for computation speed
+    
+    # Stirling's approximation for large numbers
+    if gt(n_val, "e1000000000000") == True:
+        return addlayer(n_val)
     else:
-        term1 = mul(add(n, 0.5), log(n))
-        term2 = negate(mul(n, 0.4342944819032518))
-        term3 = 0.3990899341790575
-        total_log = add(add(term1, term2), term3)
+        term1 = multiply(addition(n_val, 0.5), log(n_val))
+        term2 = negate(multiply(n_val, 0.4342944819032518))  # log10(e)
+        term3 = 0.3990899341790575  # log10(2*pi)/2
+        total_log = addition(addition(term1, term2), term3)
         return addlayer(total_log)
+
 # Comparisons
 def gt(a, b):
     sign_a, abs_a = get_sign_and_abs(a)
     sign_b, abs_b = get_sign_and_abs(b)
+    
     if sign_a != sign_b:
-        return True if sign_a > sign_b else False
+        return sign_a > sign_b
+    
     if sign_a == 1:
         a_slog = slog(abs_a)
         b_slog = slog(abs_b)
         try:
-            if math.isnan(a_slog) or math.isnan(b_slog):
+            if math.isnan(a_slog) or math.isnan(b_slog) or isinstance(a_slog, str) or isinstance(b_slog, str):
                 return False
         except:
-            return "NaN"
+            return False
+        
         if a_slog > b_slog:
             return True
         elif a_slog < b_slog:
             return False
         else:
             if is_float_convertible(abs_a) and is_float_convertible(abs_b):
-                return True if float(abs_a) > float(abs_b) else False
+                return float(abs_a) > float(abs_b)
             else:
                 return False
     else:
         a_slog = slog(abs_a)
         b_slog = slog(abs_b)
-        if math.isnan(a_slog) or math.isnan(b_slog):
+        if math.isnan(a_slog) or math.isnan(b_slog) or isinstance(a_slog, str) or isinstance(b_slog, str):
             return False
         if a_slog < b_slog:
             return True
@@ -588,32 +724,45 @@ def gt(a, b):
             return False
         else:
             if is_float_convertible(abs_a) and is_float_convertible(abs_b):
-                return True if float(abs_a) < float(abs_b) else False
+                return float(abs_a) < float(abs_b)
             else:
                 return False
 
-def lt(a, b): return True if gt(b, a) == True else False
+def lt(a, b):
+    return gt(b, a)
 
 def eq(a, b):
     sign_a, abs_a = get_sign_and_abs(a)
     sign_b, abs_b = get_sign_and_abs(b)
+    
     if sign_a != sign_b:
         return False
+    
     try:
         a_slog = slog(abs_a)
         b_slog = slog(abs_b)
     except:
         return False
+    
     try:
-        if math.isnan(a_slog) or math.isnan(b_slog):
+        if math.isnan(a_slog) or math.isnan(b_slog) or isinstance(a_slog, str) or isinstance(b_slog, str):
             return False
     except:
-        return "NaN"
+        return False
+    
     if abs(a_slog - b_slog) > 1e-10:
         return False
+    
     if is_float_convertible(abs_a) and is_float_convertible(abs_b):
-        return True if abs(float(abs_a) - float(abs_b)) < 1e-10 else False
-    return False
+        return abs(float(abs_a) - float(abs_b)) < 1e-10
+    return True
+
+def gte(a, b):
+    return not lt(a, b)
+
+def lte(a, b):
+    return not gt(a, b)
+
 # Short names
 def fact(x): return factorial(x)
 def pow(a, b): return power(a, b)
@@ -622,6 +771,7 @@ def mul(a, b): return multiply(a, b)
 def add(a, b): return addition(a, b)
 def sub(a, b): return subtract(a, b)
 def div(a, b): return division(a, b)
+
 # Formats
 def hyper_e(tet, decimals=format_decimals):
     if isinstance(tet, (int, float)):
@@ -707,33 +857,35 @@ def format(tet, decimals=format_decimals):
     return tet_str
 
 def power10_tower(tet, max_layers=max_layer, decimals=format_decimals):
-    tet = slog(tet)
-    if math.isnan(tet) or math.isinf(tet):
+    s = slog(tet)
+    if math.isnan(s) or math.isinf(s) or isinstance(s, str):
         return "NaN"
-    if tet > max_layers:
-        return "10^^" + comma_format(tet)
-    height = int(math.floor(tet))
-    frac   = tet - height
+    if s > max_layers:
+        return "10^^" + comma_format(s)
+    height = int(math.floor(s))
+    frac = s - height
     if height <= 0:
         return frac
-    mant = addlayer(frac,2)
+    mant = addlayer(frac, 2)
     expr = comma_format(float(mant), decimals)
     for _ in range(height - 1):
         expr = f"10^{expr}"
     return expr
-# Useless formats only used for this code
+
+# Helper formats
 def comma_format(number, decimals=format_decimals):
     try:
-        if abs(number) < 1e-3 or abs(number) >= 1e12:
-            s = f"{number:.{decimals}e}"
+        num_float = float(number)
+        if abs(num_float) < 1e-3 or abs(num_float) >= 1e12:
+            s = f"{num_float:.{decimals}e}"
             if 'e' in s:
                 mant, exp = s.split('e')
                 exp = exp.lstrip('+').lstrip('0') or '0'
                 return f"{mant}e{exp}"
             return s
+        return f"{num_float:,.{decimals}f}"
     except:
         return str(number)
-    return f"{number:,.{decimals}f}"
 
 def format_int_scientific(n: int, sig_digits: int = 16) -> str:
     s = f"{n:.{sig_digits}e}"
@@ -744,12 +896,145 @@ def format_int_scientific(n: int, sig_digits: int = 16) -> str:
 
 def format_float_scientific(x: float, sig_digits: int = 16) -> str:
     if x <= 0 or math.isinf(x) or math.isnan(x):
-        return f"{x}"
-    exp = math.floor(math.log10(x))
+        return str(x)
+    exp = math.floor(math.log10(abs(x)))
     mant = x / (10 ** exp)
     mant_str = f"{mant:.{sig_digits}g}".rstrip('0').rstrip('.')
     return f"{mant_str}e{exp}"
 
 def correct(x):
     return tetr(10, slog(x))
-# The end of break_eternity.py
+
+FirstOnes = ["", "U", "D", "T", "Qd", "Qn", "Sx", "Sp", "Oc", "No"]
+SecondOnes = ["", "De", "Vt", "Tg", "qg", "Qg", "sg", "Sg", "Og", "Ng"]
+ThirdOnes = ["", "Ce", "Du", "Tr", "Qa", "Qi", "Se", "Si", "Ot", "Ni"]
+MultOnes = [
+    "", "Mi", "Mc", "Na", "Pi", "Fm", "At", "Zp", "Yc", "Xo", "Ve", "Me", "Due", 
+    "Tre", "Te", "Pt", "He", "Hp", "Oct", "En", "Ic", "Mei", "Dui", "Tri", "Teti", 
+    "Pti", "Hei", "Hp", "Oci", "Eni", "Tra", "TeC", "MTc", "DTc", "TrTc", "TeTc", 
+    "PeTc", "HTc", "HpT", "OcT", "EnT", "TetC", "MTetc", "DTetc", "TrTetc", "TeTetc", 
+    "PeTetc", "HTetc", "HpTetc", "OcTetc", "EnTetc", "PcT", "MPcT", "DPcT", "TPCt", 
+    "TePCt", "PePCt", "HePCt", "HpPct", "OcPct", "EnPct", "HCt", "MHcT", "DHcT", 
+    "THCt", "TeHCt", "PeHCt", "HeHCt", "HpHct", "OcHct", "EnHct", "HpCt", "MHpcT", 
+    "DHpcT", "THpCt", "TeHpCt", "PeHpCt", "HeHpCt", "HpHpct", "OcHpct", "EnHpct", 
+    "OCt", "MOcT", "DOcT", "TOCt", "TeOCt", "PeOCt", "HeOCt", "HpOct", "OcOct", 
+    "EnOct", "Ent", "MEnT", "DEnT", "TEnt", "TeEnt", "PeEnt", "HeEnt", "HpEnt", 
+    "OcEnt", "EnEnt", "Hect", "MeHect"
+]
+
+def get_short_scale_suffix(n: int) -> str:
+    """Generate the short scale suffix for a given integer, suppressing 'U' for single units in magnitude components."""
+    if n == 0:
+        return ""
+    if n < 1000:
+        hundreds = n // 100
+        tens = (n % 100) // 10
+        units = n % 10
+        return FirstOnes[units] + SecondOnes[tens] + ThirdOnes[hundreds]
+    
+    for i in range(len(MultOnes)-1, 0, -1):
+        magnitude = 1000 ** i
+        if n < magnitude:
+            continue
+        count = n // magnitude
+        remainder = n % magnitude
+        
+        # Suppress 'U' for single units in magnitude components
+        if count == 1:
+            count_str = ""
+        else:
+            count_str = get_short_scale_suffix(count)
+            
+        rem_str = get_short_scale_suffix(remainder) if remainder > 0 else ""
+        return count_str + MultOnes[i] + rem_str
+    
+    return ""
+
+def short(s: str) -> str:
+    if 'e' in s and not s.startswith('e') and not s.startswith("10^^") and not s.startswith("(10^)^"):
+        parts = s.split('e', 1)
+        if len(parts) == 2:
+            try:
+                mantissa = float(parts[0])
+                exponent = float(parts[1])
+                if exponent.is_integer():
+                    exponent_int = int(exponent)
+                    leftover = exponent_int % 3
+                    group = exponent_int // 3 - 1
+                    new_mantissa = mantissa * (10 ** leftover)
+                    if abs(new_mantissa - round(new_mantissa)) < 1e-5:
+                        formatted = str(int(round(new_mantissa)))
+                    else:
+                        formatted = f"{new_mantissa:.2f}".rstrip('0').rstrip('.')
+                    if group < 0:
+                        value = mantissa * (10 ** exponent_int)
+                        return str(int(value)) if value.is_integer() else f"{value:.2f}"
+                    elif group == 0:
+                        return formatted
+                    elif group == 1:
+                        return formatted + "M"
+                    elif group == 2:
+                        return formatted + "B"
+                    else:
+                        suffix = get_short_scale_suffix(group)
+                        return formatted + suffix
+            except (ValueError, OverflowError):
+                pass
+    k = 0
+    while k < len(s) and s[k] == 'e':
+        k += 1
+    rest = s[k:]
+    
+    if k == 0:
+        return s
+    
+    try:
+        exponent_val = float(rest)
+        if exponent_val < 0:
+            return "0"
+    except (ValueError, OverflowError):
+        return s
+    if k == 1:
+        try:
+            leftover = exponent_val % 3
+            group = exponent_val // 3 - 1
+            if group < 0:
+                value = 10 ** exponent_val
+                return str(int(value)) if value.is_integer() else f"{value:.2f}"
+            mantissa_val = 10 ** leftover
+            if abs(mantissa_val - round(mantissa_val)) < 1e-5:
+                formatted = str(int(round(mantissa_val)))
+            else:
+                formatted = f"{mantissa_val:.2f}".rstrip('0').rstrip('.')
+            if group == 0:
+                return formatted
+            elif group == 1:
+                return formatted + "M"
+            elif group == 2:
+                return formatted + "B"
+            else:
+                suffix = get_short_scale_suffix(int(group))
+                return formatted + suffix
+        except (ValueError, OverflowError):
+            return s
+    if k == 2:
+        try:
+            exponent_val = float(rest)
+            if not exponent_val.is_integer():
+                exponent_val = round(exponent_val)
+            exponent_val = int(exponent_val)
+            if suffix_max > 0:
+                threshold = math.ceil(math.log10(suffix_max + 1))
+            else:
+                threshold = 0
+
+            if exponent_val >= threshold:
+                return 'e(' + short("e" + rest) + ')'
+            else:
+                power_val = 10 ** exponent_val
+                group_index = (power_val - 3) // 3
+                suffix = get_short_scale_suffix(int(group_index))
+                return "10" + suffix
+        except (ValueError, OverflowError):
+            return 'e(' + short("e" + rest) + ')'
+    return 'e' * (k - 2) + short("ee" + rest)
