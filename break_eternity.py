@@ -4,13 +4,32 @@ import math
 FORMAT_THRESHOLD = 7  # the amount of e's when switching from scientific to (10^)^x format
 format_decimals = 6  # amount of decimals for the "hyper-e" format, "format" and the "power10_tower" format. Keep below 16.
 max_layer = 10  # amount of 10^ in power10_tower format when it switches from 10^ iterated times to 10^^x
-suffix_max= 3003 # at how much of 10^x it adds scientific notation
+suffix_max= 1e10 # at how much of 10^x it adds scientific notation (max is 1e308)
 # --End of editable constants--
 
+# --Editable suffix format--
+FirstOnes = ["", "U", "D", "T", "Qd", "Qn", "Sx", "Sp", "Oc", "No"]
+SecondOnes = ["", "De", "Vt", "Tg", "qg", "Qg", "sg", "Sg", "Og", "Ng"]
+ThirdOnes = ["", "Ce", "Du", "Tr", "Qa", "Qi", "Se", "Si", "Ot", "Ni"]
+MultOnes = [
+    "", "Mi", "Mc", "Na", "Pi", "Fm", "At", "Zp", "Yc", "Xo", "Ve", "Me", "Due", 
+    "Tre", "Te", "Pt", "He", "Hp", "Oct", "En", "Ic", "Mei", "Dui", "Tri", "Teti", 
+    "Pti", "Hei", "Hp", "Oci", "Eni", "Tra", "TeC", "MTc", "DTc", "TrTc", "TeTc", 
+    "PeTc", "HTc", "HpT", "OcT", "EnT", "TetC", "MTetc", "DTetc", "TrTetc", "TeTetc", 
+    "PeTetc", "HTetc", "HpTetc", "OcTetc", "EnTetc", "PcT", "MPcT", "DPcT", "TPCt", 
+    "TePCt", "PePCt", "HePCt", "HpPct", "OcPct", "EnPct", "HCt", "MHcT", "DHcT", 
+    "THCt", "TeHCt", "PeHCt", "HeHCt", "HpHct", "OcHct", "EnHct", "HpCt", "MHpcT", 
+    "DHpcT", "THpCt", "TeHpCt", "PeHpCt", "HeHpCt", "HpHpct", "OcHpct", "EnHpct", 
+    "OCt", "MOcT", "DOcT", "TOCt", "TeOCt", "PeOCt", "HeOCt", "HpOct", "OcOct", 
+    "EnOct", "Ent", "MEnT", "DEnT", "TEnt", "TeEnt", "PeEnt", "HeEnt", "HpEnt", 
+    "OcEnt", "EnEnt", "Hect", "MeHect"
+]
+# --End of editable suffix format--
+
 LARGE_HEIGHT_THRESHOLD = 9007199254740991  # 2**53-1, the largest integer that can be represented exactly in python's float
-PRECISION_LIMIT = 1e-308  # Precision limit for logarithmic calculations
-MIN_EXPONENT = -1e308  # Minimum exponent for logarithmic calculations
-MAX_EXPONENT = 1e308   # Maximum exponent for logarithmic calculations
+PRECISION_LIMIT = 1e-308
+MIN_EXPONENT = -1e308
+MAX_EXPONENT = 1e308
 
 def get_sign_and_abs(x):
     if x is None:
@@ -387,8 +406,6 @@ def subtract_positive(a, b, depth=0):
         return negate(b)
     if b in [0, "0"]:
         return a
-    
-    # Handle negative values using logarithmic approach
     if is_float_convertible(a) and is_float_convertible(b):
         a_float = float(a)
         b_float = float(b)
@@ -424,8 +441,6 @@ def subtract_positive(a, b, depth=0):
             return "e" + str(math.log10(result))
         except:
             pass 
-    
-    # Logarithmic subtraction for very large numbers
     A = log(a)
     B = log(b)
     if A == "NaN" or B == "NaN" or A == "Error: Logarithm of negative number" or B == "Error: Logarithm of negative number":
@@ -454,8 +469,6 @@ def add_positive(a, b):
         return b
     if b in [0, "0"]:
         return a
-    
-    # Direct addition for manageable numbers
     if is_float_convertible(a) and is_float_convertible(b):
         a_float = float(a)
         b_float = float(b)
@@ -469,23 +482,15 @@ def add_positive(a, b):
     s_b = slog(b)
     if math.isnan(s_a) or math.isnan(s_b) or isinstance(s_a, str) or isinstance(s_b, str):
         return "NaN"
-    
-    # If the slog values differ significantly, return the larger number
     if abs(s_a - s_b) >= 1:
         return a if s_a > s_b else b
-    
-    # For very large numbers, use logarithmic addition
     if s_a > 100 or s_b > 100:
         return a if s_a >= s_b else b
-    
-    # For smaller numbers, try direct addition
     if s_a < 1 and s_b < 1:
         try:
             return float(a) + float(b)
         except:
             return a if s_a >= s_b else b
-    
-    # Ensure we're subtracting logs correctly
     if gt(b, a) == True:
         a, b = b, a
         s_a, s_b = s_b, s_a
@@ -563,8 +568,7 @@ def multiply(a, b):
     
     if abs_a in [0, "0"] or abs_b in [0, "0"]:
         return 0
-    
-    # Direct multiplication for manageable numbers
+
     try:
         a_float = float(abs_a)
         b_float = float(abs_b)
@@ -573,8 +577,7 @@ def multiply(a, b):
             return apply_sign(product, sign)
     except (ValueError, TypeError, OverflowError):
         pass
-    
-    # Logarithmic multiplication for very large numbers
+
     try:
         log_a = log(abs_a)
         log_b = log(abs_b)
@@ -596,8 +599,7 @@ def division(a, b):
         return "Error: Division by zero"
     if abs_a in [0, "0"]:
         return 0
-    
-    # Direct division for manageable numbers
+
     try:
         a_float = float(abs_a)
         b_float = float(abs_b)
@@ -606,8 +608,7 @@ def division(a, b):
             return apply_sign(quotient, sign)
     except (ValueError, TypeError, OverflowError):
         pass
-    
-    # Logarithmic division for very large numbers
+
     try:
         log_a = log(abs_a)
         log_b = log(abs_b)
@@ -622,8 +623,7 @@ def division(a, b):
 
 def power(a, b):
     sign_a, abs_a = get_sign_and_abs(a)
-    
-    # Handle negative base with integer exponent
+
     if sign_a == -1:
         try:
             b_float = float(b)
@@ -636,8 +636,7 @@ def power(a, b):
                 return "Error: Fractional exponent of negative base"
         except:
             return "Error: Invalid exponent for negative base"
-    
-    # Logarithmic power for positive base
+
     try:
         log_a = log(abs_a)
         if log_a == "Error: Logarithm of negative number":
@@ -669,22 +668,18 @@ def factorial(n):
     
     if n_val == 0:
         return 1
-    
-    # Direct factorial for manageable numbers
+
     try:
         if n_val < 170:
             return math.gamma(n_val + 1)
     except (ValueError, TypeError, OverflowError):
         pass
-    
-    # Stirling's approximation for large numbers
     if gt(n_val, "e1000000000000") == True:
         return addlayer(n_val)
     else:
         term1 = multiply(addition(n_val, 0.5), log(n_val))
-        term2 = negate(multiply(n_val, 0.4342944819032518))  # log10(e)
-        term3 = 0.3990899341790575  # log10(2*pi)/2
-        total_log = addition(addition(term1, term2), term3)
+        term2 = negate(multiply(n_val, 0.4342944819032518))
+        total_log = addition(addition(term1, term2), 0.3990899341790575)
         return addlayer(total_log)
 
 # Comparisons
@@ -872,85 +867,18 @@ def power10_tower(tet, max_layers=max_layer, decimals=format_decimals):
         expr = f"10^{expr}"
     return expr
 
-# Helper formats
-def comma_format(number, decimals=format_decimals):
-    try:
-        num_float = float(number)
-        if abs(num_float) < 1e-3 or abs(num_float) >= 1e12:
-            s = f"{num_float:.{decimals}e}"
-            if 'e' in s:
-                mant, exp = s.split('e')
-                exp = exp.lstrip('+').lstrip('0') or '0'
-                return f"{mant}e{exp}"
-            return s
-        return f"{num_float:,.{decimals}f}"
-    except:
-        return str(number)
-
-def format_int_scientific(n: int, sig_digits: int = 16) -> str:
-    s = f"{n:.{sig_digits}e}"
-    mant, exp = s.split('e')
-    mant = mant.rstrip('0').rstrip('.')
-    exp = exp.lstrip('+').lstrip('0') or '0'
-    return f"{mant}e{exp}"
-
-def format_float_scientific(x: float, sig_digits: int = 16) -> str:
-    if x <= 0 or math.isinf(x) or math.isnan(x):
-        return str(x)
-    exp = math.floor(math.log10(abs(x)))
-    mant = x / (10 ** exp)
-    mant_str = f"{mant:.{sig_digits}g}".rstrip('0').rstrip('.')
-    return f"{mant_str}e{exp}"
-
-def correct(x):
-    return tetr(10, slog(x))
-
-FirstOnes = ["", "U", "D", "T", "Qd", "Qn", "Sx", "Sp", "Oc", "No"]
-SecondOnes = ["", "De", "Vt", "Tg", "qg", "Qg", "sg", "Sg", "Og", "Ng"]
-ThirdOnes = ["", "Ce", "Du", "Tr", "Qa", "Qi", "Se", "Si", "Ot", "Ni"]
-MultOnes = [
-    "", "Mi", "Mc", "Na", "Pi", "Fm", "At", "Zp", "Yc", "Xo", "Ve", "Me", "Due", 
-    "Tre", "Te", "Pt", "He", "Hp", "Oct", "En", "Ic", "Mei", "Dui", "Tri", "Teti", 
-    "Pti", "Hei", "Hp", "Oci", "Eni", "Tra", "TeC", "MTc", "DTc", "TrTc", "TeTc", 
-    "PeTc", "HTc", "HpT", "OcT", "EnT", "TetC", "MTetc", "DTetc", "TrTetc", "TeTetc", 
-    "PeTetc", "HTetc", "HpTetc", "OcTetc", "EnTetc", "PcT", "MPcT", "DPcT", "TPCt", 
-    "TePCt", "PePCt", "HePCt", "HpPct", "OcPct", "EnPct", "HCt", "MHcT", "DHcT", 
-    "THCt", "TeHCt", "PeHCt", "HeHCt", "HpHct", "OcHct", "EnHct", "HpCt", "MHpcT", 
-    "DHpcT", "THpCt", "TeHpCt", "PeHpCt", "HeHpCt", "HpHpct", "OcHpct", "EnHpct", 
-    "OCt", "MOcT", "DOcT", "TOCt", "TeOCt", "PeOCt", "HeOCt", "HpOct", "OcOct", 
-    "EnOct", "Ent", "MEnT", "DEnT", "TEnt", "TeEnt", "PeEnt", "HeEnt", "HpEnt", 
-    "OcEnt", "EnEnt", "Hect", "MeHect"
-]
-
-def get_short_scale_suffix(n: int) -> str:
-    """Generate the short scale suffix for a given integer, suppressing 'U' for single units in magnitude components."""
-    if n == 0:
-        return ""
-    if n < 1000:
-        hundreds = n // 100
-        tens = (n % 100) // 10
-        units = n % 10
-        return FirstOnes[units] + SecondOnes[tens] + ThirdOnes[hundreds]
-    
-    for i in range(len(MultOnes)-1, 0, -1):
-        magnitude = 1000 ** i
-        if n < magnitude:
-            continue
-        count = n // magnitude
-        remainder = n % magnitude
-        
-        # Suppress 'U' for single units in magnitude components
-        if count == 1:
-            count_str = ""
-        else:
-            count_str = get_short_scale_suffix(count)
-            
-        rem_str = get_short_scale_suffix(remainder) if remainder > 0 else ""
-        return count_str + MultOnes[i] + rem_str
-    
-    return ""
-
-def short(s: str) -> str:
+def letter(s: str) -> str:
+    s = correct(s)
+    try: 
+        if float(s) < 1e6: return float(s)
+    except: 
+        pass
+    try: 
+        s = format_float_scientific(s)  
+    except: 
+        pass
+    if s.startswith("10^^") or s.startswith("(10^)^"):
+        return format(s)
     if 'e' in s and not s.startswith('e') and not s.startswith("10^^") and not s.startswith("(10^)^"):
         parts = s.split('e', 1)
         if len(parts) == 2:
@@ -978,22 +906,26 @@ def short(s: str) -> str:
                     else:
                         suffix = get_short_scale_suffix(group)
                         return formatted + suffix
-            except (ValueError, OverflowError):
+            except (ValueError, OverflowError): 
                 pass
     k = 0
     while k < len(s) and s[k] == 'e':
         k += 1
     rest = s[k:]
     
-    if k == 0:
+    if k == 0: 
         return s
-    
     try:
         exponent_val = float(rest)
-        if exponent_val < 0:
-            return "0"
-    except (ValueError, OverflowError):
+        if exponent_val < 0: return "0"
+    except (ValueError, OverflowError): 
         return s
+    if exponent_val > suffix_max:
+        if abs(exponent_val - round(exponent_val)) < 1e-5:
+            exponent_str = str(int(round(exponent_val)))
+        else:
+            exponent_str = str(exponent_val)
+        return 'e(' + letter(format_float_scientific(exponent_str)) + ')'
     if k == 1:
         try:
             leftover = exponent_val % 3
@@ -1002,10 +934,14 @@ def short(s: str) -> str:
                 value = 10 ** exponent_val
                 return str(int(value)) if value.is_integer() else f"{value:.2f}"
             mantissa_val = 10 ** leftover
+            if mantissa_val >= 999.995:
+                mantissa_val /= 1000.0
+                group += 1
             if abs(mantissa_val - round(mantissa_val)) < 1e-5:
                 formatted = str(int(round(mantissa_val)))
             else:
                 formatted = f"{mantissa_val:.2f}".rstrip('0').rstrip('.')
+
             if group == 0:
                 return formatted
             elif group == 1:
@@ -1029,12 +965,84 @@ def short(s: str) -> str:
                 threshold = 0
 
             if exponent_val >= threshold:
-                return 'e(' + short("e" + rest) + ')'
+                return 'e(' + letter("e" + rest) + ')'
             else:
                 power_val = 10 ** exponent_val
                 group_index = (power_val - 3) // 3
                 suffix = get_short_scale_suffix(int(group_index))
                 return "10" + suffix
         except (ValueError, OverflowError):
-            return 'e(' + short("e" + rest) + ')'
-    return 'e' * (k - 2) + short("ee" + rest)
+            return 'e(' + letter("e" + rest) + ')'
+
+    return fix_letter_output((k-2)*'e' + '(' + letter("ee" + rest) + ')')
+# Helper formats
+def comma_format(number, decimals=format_decimals):
+    try:
+        num_float = float(number)
+        if abs(num_float) < 1e-3 or abs(num_float) >= 1e12:
+            s = f"{num_float:.{decimals}e}"
+            if 'e' in s:
+                mant, exp = s.split('e')
+                exp = exp.lstrip('+').lstrip('0') or '0'
+                return f"{mant}e{exp}"
+            return s
+        return f"{num_float:,.{decimals}f}"
+    except:
+        return str(number)
+
+def format_int_scientific(n: int, sig_digits: int = 16) -> str:
+    s = f"{n:.{sig_digits}e}"
+    mant, exp = s.split('e')
+    mant = mant.rstrip('0').rstrip('.')
+    exp = exp.lstrip('+').lstrip('0') or '0'
+    return f"{mant}e{exp}"
+
+def format_float_scientific(x: float, sig_digits: int = 16) -> str:
+    if float(x) <= 0 or math.isinf(float(x)) or math.isnan(float(x)):
+        return str(x)
+    exp = math.floor(math.log10(abs(float(x))))
+    mant = float(x) / (10 ** exp)
+    mant_str = f"{mant:.{sig_digits}g}".rstrip('0').rstrip('.')
+    return f"{mant_str}e{exp}"
+
+def correct(x):
+    return tetr(10, slog(x))
+
+def fix_letter_output(s):
+    cleaned = ''.join(c for c in s if c not in '()')
+    e_count = 0
+    i = 0
+    while i < len(cleaned) and cleaned[i] == 'e':
+        e_count += 1
+        i += 1
+    if i < len(cleaned) and cleaned[i].isdigit():
+        prefix = 'e' * e_count
+        suffix = cleaned[i:]
+        return f"{prefix}({suffix})"
+    else:
+        return "Error: error formatting the short format value"
+
+def get_short_scale_suffix(n: int) -> str:
+    if n == 0:
+        return ""
+    if n < 1000:
+        hundreds = n // 100
+        tens = (n % 100) // 10
+        units = n % 10
+        return FirstOnes[units] + SecondOnes[tens] + ThirdOnes[hundreds]
+    
+    for i in range(len(MultOnes)-1, 0, -1):
+        magnitude = 1000 ** i
+        if n < magnitude:
+            continue
+        count = n // magnitude
+        remainder = n % magnitude
+        if count == 1:
+            count_str = ""
+        else:
+            count_str = get_short_scale_suffix(count)
+            
+        rem_str = get_short_scale_suffix(remainder) if remainder > 0 else ""
+        return count_str + MultOnes[i] + rem_str
+    
+    return ""
