@@ -1,3 +1,5 @@
+# All functions: slog, log, root, sqrt, div, sub, negate, add, mul, pow, factorial, addlayer, tetr, gt (greater than), lt (less than), eq (equal to), gte (greater than or equal), lte (less than or equal), hyper_e, format, letter, power10_tower.
+# Also for addlayer it just 10^x the number, but if you want you can also add a second value to addlayer it more times for example: addlayer(15,3)=10^10^10^15=eee15
 import math
 
 # --Editable constants--
