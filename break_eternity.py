@@ -870,13 +870,14 @@ def power10_tower(tet, max_layers=max_layer, decimals=format_decimals):
     return expr
 
 def letter(s: str) -> str:
-    s = correct(s)
+    try:
+        s = format_float_scientific(s)
+    except:
+        pass
+    if gte(s, "(10^)^8 10000000000"):
+        s = correct(s)
     try: 
         if float(s) < 1e6: return float(s)
-    except: 
-        pass
-    try: 
-        s = format_float_scientific(s)  
     except: 
         pass
     if s.startswith("10^^") or s.startswith("(10^)^"):
@@ -886,18 +887,22 @@ def letter(s: str) -> str:
         if len(parts) == 2:
             try:
                 mantissa = float(parts[0])
-                exponent = float(parts[1])
-                if exponent.is_integer():
-                    exponent_int = int(exponent)
-                    leftover = exponent_int % 3
-                    group = exponent_int // 3 - 1
+                exponent_str = parts[1]
+                if exponent_str.lstrip('-').lstrip('+').isdigit():
+                    exponent_int = int(exponent_str)
+                    exponent_val = exponent_int
+                    leftover = exponent_val % 3
+                    group = exponent_val // 3 - 1
                     new_mantissa = mantissa * (10 ** leftover)
+                    if new_mantissa >= 950:
+                        new_mantissa = 1
+                        group += 1
                     if abs(new_mantissa - round(new_mantissa)) < 1e-5:
                         formatted = str(int(round(new_mantissa)))
                     else:
                         formatted = f"{new_mantissa:.2f}".rstrip('0').rstrip('.')
                     if group < 0:
-                        value = mantissa * (10 ** exponent_int)
+                        value = mantissa * (10 ** exponent_val)
                         return str(int(value)) if value.is_integer() else f"{value:.2f}"
                     elif group == 0:
                         return formatted
@@ -908,6 +913,32 @@ def letter(s: str) -> str:
                     else:
                         suffix = get_short_scale_suffix(group)
                         return formatted + suffix
+                else:
+                    exponent = float(exponent_str)
+                    if exponent.is_integer():
+                        exponent_int = int(exponent)
+                        leftover = exponent_int % 3
+                        group = exponent_int // 3 - 1
+                        new_mantissa = mantissa * (10 ** leftover)
+                        if new_mantissa >= 950:
+                            new_mantissa = 1
+                            group += 1
+                        if abs(new_mantissa - round(new_mantissa)) < 1e-5:
+                            formatted = str(int(round(new_mantissa)))
+                        else:
+                            formatted = f"{new_mantissa:.2f}".rstrip('0').rstrip('.')
+                        if group < 0:
+                            value = mantissa * (10 ** exponent_int)
+                            return str(int(value)) if value.is_integer() else f"{value:.2f}"
+                        elif group == 0:
+                            return formatted
+                        elif group == 1:
+                            return formatted + "M"
+                        elif group == 2:
+                            return formatted + "B"
+                        else:
+                            suffix = get_short_scale_suffix(group)
+                            return formatted + suffix
             except (ValueError, OverflowError): 
                 pass
     k = 0
@@ -918,32 +949,32 @@ def letter(s: str) -> str:
     if k == 0: 
         return s
     try:
-        exponent_val = float(rest)
+        if rest.lstrip('-').lstrip('+').isdigit():
+            exponent_val = int(rest)
+        else:
+            exponent_val = float(rest)
         if exponent_val < 0: return "0"
     except (ValueError, OverflowError): 
         return s
-    if exponent_val > suffix_max:
-        if abs(exponent_val - round(exponent_val)) < 1e-5:
-            exponent_str = str(int(round(exponent_val)))
-        else:
-            exponent_str = str(exponent_val)
-        return 'e(' + letter(format_float_scientific(exponent_str)) + ')'
+
     if k == 1:
-        try:
-            leftover = exponent_val % 3
-            group = exponent_val // 3 - 1
+        if gt(exponent_val, suffix_max):
+            return "e(" + str(letter(exponent_val)) + ")"        
+        if isinstance(exponent_val, int) or (isinstance(exponent_val, float) and exponent_val.is_integer()):
+            exponent_val_int = int(exponent_val)
+            leftover = exponent_val_int % 3
+            group = exponent_val_int // 3 - 1
             if group < 0:
-                value = 10 ** exponent_val
+                value = 10 ** exponent_val_int
                 return str(int(value)) if value.is_integer() else f"{value:.2f}"
-            mantissa_val = 10 ** leftover
-            if mantissa_val >= 999.995:
-                mantissa_val /= 1000.0
+            mantissa_val = 10 ** leftover         
+            if mantissa_val >= 950:
+                mantissa_val = 1
                 group += 1
             if abs(mantissa_val - round(mantissa_val)) < 1e-5:
                 formatted = str(int(round(mantissa_val)))
             else:
                 formatted = f"{mantissa_val:.2f}".rstrip('0').rstrip('.')
-
             if group == 0:
                 return formatted
             elif group == 1:
@@ -953,14 +984,35 @@ def letter(s: str) -> str:
             else:
                 suffix = get_short_scale_suffix(int(group))
                 return formatted + suffix
-        except (ValueError, OverflowError):
-            return s
+        else:
+            leftover = exponent_val % 3
+            group = exponent_val // 3 - 1
+            if group < 0:
+                value = 10 ** exponent_val
+                return str(int(value)) if value.is_integer() else f"{value:.2f}"
+            mantissa_val = 10 ** leftover
+            if mantissa_val >= 950:
+                mantissa_val = 1
+                group += 1
+            if abs(mantissa_val - round(mantissa_val)) < 1e-5:
+                formatted = str(int(round(mantissa_val)))
+            else:
+                formatted = f"{mantissa_val:.2f}".rstrip('0').rstrip('.')
+            if group == 0:
+                return formatted
+            elif group == 1:
+                return formatted + "M"
+            elif group == 2:
+                return formatted + "B"
+            else:
+                suffix = get_short_scale_suffix(int(group))
+                return formatted + suffix
     if k == 2:
         try:
-            exponent_val = float(rest)
-            if not exponent_val.is_integer():
-                exponent_val = round(exponent_val)
-            exponent_val = int(exponent_val)
+            if rest.lstrip('-').lstrip('+').isdigit():
+                exponent_val = int(rest)
+            else:
+                exponent_val = float(rest)
             if suffix_max > 0:
                 threshold = math.ceil(math.log10(suffix_max + 1))
             else:
@@ -969,7 +1021,10 @@ def letter(s: str) -> str:
             if exponent_val >= threshold:
                 return 'e(' + letter("e" + rest) + ')'
             else:
-                power_val = 10 ** exponent_val
+                if isinstance(exponent_val, int):
+                    power_val = 10 ** exponent_val
+                else:
+                    power_val = 10.0 ** exponent_val
                 group_index = (power_val - 3) // 3
                 suffix = get_short_scale_suffix(int(group_index))
                 return "10" + suffix
