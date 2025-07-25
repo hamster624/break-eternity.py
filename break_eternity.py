@@ -1,12 +1,9 @@
-# All functions: slog, log, root, sqrt, div, sub, negate, add, mul, pow, factorial, addlayer, tetr, gt (greater than), lt (less than), eq (equal to), gte (greater than or equal), lte (less than or equal), hyper_e, format, letter, power10_tower.
-# Also for addlayer it just 10^x the number, but if you want you can also add a second value to addlayer it more times for example: addlayer(15,3)=10^10^10^15=eee15
 import math
-
 # --Editable constants--
 FORMAT_THRESHOLD = 7  # the amount of e's when switching from scientific to (10^)^x format
 format_decimals = 6  # amount of decimals for the "hyper-e" format, "format" and the "power10_tower" format. Keep below 16.
 max_layer = 10  # amount of 10^ in power10_tower format when it switches from 10^ iterated times to 10^^x
-suffix_max= 1e10 # at how much of 10^x it adds scientific notation (max is 1e308)
+suffix_max= 1e308 # at how much of 10^x it adds scientific notation (max is 1e308)
 # --End of editable constants--
 
 # --Editable suffix format--
@@ -1032,6 +1029,63 @@ def letter(s: str) -> str:
             return 'e(' + letter("e" + rest) + ')'
 
     return fix_letter_output((k-2)*'e' + '(' + letter("ee" + rest) + ')')
+def suffix_to_scientific(input_str: str) -> str:
+    i = 0
+    has_dot = False
+    while i < len(input_str):
+        c = input_str[i]
+        if c in '0123456789':
+            i += 1
+        elif c == '.' and not has_dot:
+            has_dot = True
+            i += 1
+        elif c == '-' and i == 0:
+            i += 1
+        else:
+            break
+    if i == 0:
+        mantissa_val = 1.0
+        suffix_str = input_str
+    else:
+        mantissa_part = input_str[:i]
+        suffix_str = input_str[i:]
+        try:
+            mantissa_val = float(mantissa_part)
+        except:
+            mantissa_val = 1.0
+            suffix_str = input_str
+    
+    additional_exponent = 0
+    if suffix_str:
+        try:
+            n = parse_suffix(suffix_str)
+            additional_exponent = 3 * (n + 1)
+        except Exception as e:
+            additional_exponent = 0
+    
+    if mantissa_val == 0:
+        return "0"
+    
+    try:
+        k = math.floor(math.log10(abs(mantissa_val)))
+    except:
+        k = 0
+    total_exponent = k + additional_exponent
+    new_mantissa = mantissa_val / (10 ** k)
+    
+    if abs(new_mantissa - round(new_mantissa)) < 1e-5:
+        mantissa_output = str(int(round(new_mantissa)))
+    else:
+        formatted = f"{new_mantissa:.2f}"
+        if '.' in formatted:
+            formatted = formatted.rstrip('0').rstrip('.')
+        mantissa_output = formatted
+    
+    if mantissa_output == "1":
+        return "e" + str(int(total_exponent))
+    else:
+        return mantissa_output + "e" + str(int(total_exponent))
+
 # Helper formats
 def comma_format(number, decimals=format_decimals):
     try:
@@ -1103,3 +1157,52 @@ def get_short_scale_suffix(n: int) -> str:
         return count_str + MultOnes[i] + rem_str
     
     return ""
+base_map = {}
+for hundreds in range(0, 10):
+    for tens in range(0, 10):
+        for units in range(0, 10):
+            s_str = FirstOnes[units] + SecondOnes[tens] + ThirdOnes[hundreds]
+            num = hundreds * 100 + tens * 10 + units
+            if s_str not in base_map:
+                base_map[s_str] = num
+base_map[""] = 0
+
+mult_map = {}
+for idx, s in enumerate(MultOnes):
+    if s:
+        if s in mult_map:
+            if idx > mult_map[s]:
+                mult_map[s] = idx
+        else:
+            mult_map[s] = idx
+
+mult_strs_sorted = sorted([s for s in mult_map.keys() if s], key=len, reverse=True)
+
+def parse_suffix(s: str) -> int:
+    if s in base_map:
+        return base_map[s]
+    for mult_str in mult_strs_sorted:
+        if s.endswith(mult_str):
+            count_str = s[:-len(mult_str)]
+            if mult_str == "":
+                continue
+            try:
+                count_val = 1 if count_str == "" else parse_suffix(count_str)
+                index_val = mult_map[mult_str]
+                return count_val * (1000 ** index_val)
+            except:
+                continue
+    for i in range(0, len(s) + 1):
+        for mult_str in mult_strs_sorted:
+            if i + len(mult_str) <= len(s) and s.startswith(mult_str, i):
+                count_str = s[:i]
+                remainder_str = s[i + len(mult_str):]
+                try:
+                    count_val = 1 if count_str == "" else parse_suffix(count_str)
+                    remainder_val = parse_suffix(remainder_str) if remainder_str else 0
+                    index_val = mult_map[mult_str]
+                    result = count_val * (1000 ** index_val) + remainder_val
+                    return result
+                except:
+                    continue
+    raise ValueError(f"Unrecognized suffix: {s}")
