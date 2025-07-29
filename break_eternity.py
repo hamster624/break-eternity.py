@@ -378,6 +378,10 @@ def log(x):
         except:
             return "NaN"
 
+def LogBase(x,y):
+	return div(log(x),log(y))
+def ln(x):
+	return mul(log(x),2.302585092994046)
 def addlayer(a, b=1):
     s = slog(a)
     try:
@@ -646,6 +650,9 @@ def power(a, b):
         return result
     except:
         return "Error doing power"
+ 
+def exp(x):
+	return pow(2.7182818284590452,x)
 
 def root(a, b):
     if b == 0:
@@ -680,7 +687,55 @@ def factorial(n):
         term2 = negate(multiply(n_val, 0.4342944819032518))
         total_log = addition(addition(term1, term2), 0.3990899341790575)
         return addlayer(total_log)
+ 
+def gamma(x):
+	return fact(sub(x,1))
 
+def floor(x):
+	try:
+		math.floor(x)
+	except:
+		return x
+
+def ceil(x):
+	try:
+		math.ceil(x)
+	except:
+		return x
+
+def lambertw(z):
+    if lte(z, 0):
+        raise ValueError("Asymptotic expansion valid only for positive z >> 1")
+    elif gte(z,"ee6"):
+        return mul(log(z), 2.302585092994046)
+    L1 = log(z)
+    L2 = log(L1)
+
+    termC = div(L2, L1)
+    numeratorD = mul(L2, sub(-2, L2))
+    denominatorD = mul(2, mul(L1, L1))
+    termD = div(numeratorD, denominatorD)
+
+    part1 = sub(L1, L2)
+    part2 = add(termC, termD)
+
+    return add(part1, part2)
+
+def OoMs(start, end, time=1):
+    if gt(start, end): 
+        raise ValueError("OoMs error: start for the OoMs cant be more than the end")
+    slg_end = slog(end)
+    slg_start = slog(start)
+    slg_fl_start = math.floor(slg_start)
+    slg_fl_end = math.floor(slg_end)
+    x = (tetr(10, slg_end-(slg_fl_end-1)) - tetr(10, slg_start-(slg_fl_start-1))) / time
+    if x < 1 and slg_fl_end-2 < 0:
+        y = slg_fl_end-2
+        x = round(10**x, 6)
+    else:
+        y = slg_fl_end-1
+        x = round(x, 6)
+    return f"{x} OoMs^{y}"
 # Comparisons
 def gt(a, b):
     sign_a, abs_a = get_sign_and_abs(a)
@@ -757,6 +812,17 @@ def gte(a, b):
 def lte(a, b):
     return not gt(a, b)
 
+def max(a,b):
+	if gte(a,b):
+		return a
+	else:
+		return b
+
+def min(a,b):
+	if lte(a,b):
+		return a
+	else:
+		return b
 # Short names
 def fact(x): return factorial(x)
 def pow(a, b): return power(a, b)
@@ -873,10 +939,6 @@ def letter(s: str) -> str:
         pass
     if gte(s, "(10^)^8 10000000000"):
         s = correct(s)
-    try: 
-        if float(s) < 1e6: return float(s)
-    except: 
-        pass
     if s.startswith("10^^") or s.startswith("(10^)^"):
         return format(s)
     if 'e' in s and not s.startswith('e') and not s.startswith("10^^") and not s.startswith("(10^)^"):
@@ -902,7 +964,7 @@ def letter(s: str) -> str:
                         value = mantissa * (10 ** exponent_val)
                         return str(int(value)) if value.is_integer() else f"{value:.2f}"
                     elif group == 0:
-                        return formatted
+                        return formatted + "K"
                     elif group == 1:
                         return formatted + "M"
                     elif group == 2:
@@ -928,7 +990,7 @@ def letter(s: str) -> str:
                             value = mantissa * (10 ** exponent_int)
                             return str(int(value)) if value.is_integer() else f"{value:.2f}"
                         elif group == 0:
-                            return formatted
+                            return formatted + "K"
                         elif group == 1:
                             return formatted + "M"
                         elif group == 2:
@@ -973,7 +1035,7 @@ def letter(s: str) -> str:
             else:
                 formatted = f"{mantissa_val:.2f}".rstrip('0').rstrip('.')
             if group == 0:
-                return formatted
+                return formatted + "K"
             elif group == 1:
                 return formatted + "M"
             elif group == 2:
@@ -996,7 +1058,7 @@ def letter(s: str) -> str:
             else:
                 formatted = f"{mantissa_val:.2f}".rstrip('0').rstrip('.')
             if group == 0:
-                return formatted
+                return formatted + "K"
             elif group == 1:
                 return formatted + "M"
             elif group == 2:
@@ -1086,7 +1148,7 @@ def suffix_to_scientific(input_str: str) -> str:
     else:
         return mantissa_output + "e" + str(int(total_exponent))
 
-# Helper formats
+# Code helpers
 def comma_format(number, decimals=format_decimals):
     try:
         num_float = float(number)
